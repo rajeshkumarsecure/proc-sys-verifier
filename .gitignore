@@ -1,0 +1,27 @@
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+/vendor/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+*.local
+/.scratch/
+/tmp/
+/artifacts/
+/bpf/vmlinux.h
+*.jsonl
+*.cast
+*.mp4
+*.gif
+*.pem
+*.key
+.env
+.env.*
+
+# BPF objects are source-distribution inputs embedded by the generated Go files.
+!/internal/watch/*_bpfel.o
+!/internal/watch/*_bpfeb.o

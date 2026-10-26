@@ -1,0 +1,46 @@
+# Privileged container policy.
+#
+# A privileged container (Docker --privileged, Kubernetes
+# securityContext.privileged=true, runc with --no-pivot or with all caps
+# granted) deliberately turns off most of the masking and read-only contract.
+# In that mode, the operator has explicitly opted into a wide-open view of
+# /proc and /sys. WritableDrift on those paths is noise, not signal.
+#
+# The remaining interesting class for a privileged container is
+# OutOfPolicyRedirect — even with a wide-open view, a symlink that redirects
+# into something the spec *did* still mask is the runc-CVE-2024-21626 shape
+# and worth flagging.
+#
+# Use with: psv scan -policy privileged <container-id>
+
+name: privileged
+description: Privileged container — most masking is intentionally relaxed; only flag redirects.
+
+allow:
+  # Sweeping allow on WritableDrift across the in-container procfs/sysfs:
+  # the privileged container has CAP_SYS_ADMIN and friends and can do this
+  # already, so flagging individual files is noise.
+  - class: WritableDrift
+    path_glob: /proc/**
+    reason: privileged container has CAP_SYS_ADMIN — /proc writes expected
+  - class: WritableDrift
+    path_glob: /sys/**
+    reason: privileged container has CAP_SYS_ADMIN — /sys writes expected
+  # PostStartRemount is host-level mount activity. A privileged container can
+  # mount, and an operator chose to allow that. The watcher still emits the
+  # event so it's visible if needed; we just suppress it from the report.
+  - class: PostStartRemount
+    path_glob: '**'
+    reason: privileged container can issue mounts; activity expected
+
+# RuntimeWrite is the one class we KEEP denying under privileged. The
+# verifier's contract is the OCI spec, not the runtime's capability set.
+# If the spec declared a path masked and the container wrote to it, that
+# is a CVE-class signal (CVE-2025-31133 / CVE-2025-52565 / CVE-2025-52881 all manifest as
+# writes to spec-declared-masked paths) regardless of capabilities. The
+# operator who genuinely wants to allow such writes can do so per-path
+# in a custom profile.
+deny:
+  - class: RuntimeWrite
+    path_glob: '**'
+    reason: write hit a spec-declared masked/readonly path; CVE-class signal even under privileged

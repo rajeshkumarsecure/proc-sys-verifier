@@ -1,0 +1,35 @@
+# systemd-cgroup policy.
+#
+# A container running systemd as PID 1 (or any workload that legitimately
+# manages its own sub-cgroups) needs write access to its delegated cgroup
+# subtree. The default policy will flag every writable cgroup file as a
+# CgroupDelegationExposure deviation; this profile says "writes inside the
+# container's own delegated subtree are expected; writes that escape it are
+# not."
+#
+# Pair with: psv scan -policy systemd-cgroup <container-id>
+#
+# The two scope keywords below are evaluated against the deviation's
+# CgroupDelegationExposureObserved payload (specifically EffectivePath vs
+# ContainerCgroup), not against the file path. That's the whole point —
+# whether a write is "inside the delegated subtree" depends on the cgroup
+# mount's `root`, which is per-container.
+
+name: systemd-cgroup
+description: systemd as PID 1 with a properly delegated cgroup subtree.
+
+allow:
+  # Writes whose effective host cgroup path lies inside the container's own
+  # delegated subtree are expected. This covers cgroup.procs, cgroup.kill,
+  # cgroup.freeze, memory.max, etc. when systemd is managing units.
+  - class: CgroupDelegationExposure
+    scope: delegated_subtree
+    reason: write stays inside the container's delegated cgroup subtree
+
+deny:
+  # ... but writes whose effective host path escapes the delegated subtree
+  # are exactly the contract-breaking case. Keep them, and tag them so the
+  # operator sees that this profile explicitly says "do not".
+  - class: CgroupDelegationExposure
+    scope: above_delegated_root
+    reason: write would affect parent or sibling cgroups outside delegation

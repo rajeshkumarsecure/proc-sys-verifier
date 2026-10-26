@@ -1,0 +1,35 @@
+# Default policy: no exceptions beyond the OCI runtime contract.
+#
+# Use for vanilla containers that have not opted into any extra capability,
+# privileged mode, host PID, or cgroup delegation. Every WritableDrift and
+# OutOfPolicyRedirect deviation is reported.
+#
+# Profiles you may add later:
+#   - privileged.yaml — opens up most of /proc/sys and /sys; only flag
+#     symlink redirects.
+#   - hostpid.yaml    — pid namespace not isolated; suppress /proc/<pid>/ drift.
+#   - systemd-cgroup.yaml — allow writes under the delegated cgroup subtree;
+#     deny anywhere above it.
+
+name: default
+description: Vanilla runc/OCI container — no extra deviations tolerated.
+
+# allow: a deviation matching one of these rules is dropped from the report
+# (its rule name is logged at debug level via the renderer).
+allow: []
+
+# deny: a deviation matching one of these rules is kept in the report, with
+# its `rule` field set to the matching rule name. Useful for promoting a
+# specific finding to operator attention.
+#
+# Phase 4 (eBPF watcher) classes: PostStartRemount and RuntimeWrite both
+# represent runtime activity the static scan can't catch. Default policy
+# flags every event — operators using `psv scan -ingest` get them in the
+# report tagged with the rule names below.
+deny:
+  - class: PostStartRemount
+    path_glob: '**'
+    reason: a mount appeared after container start under /proc or /sys; watcher caught it
+  - class: RuntimeWrite
+    path_glob: '**'
+    reason: a write hit a spec-declared masked or readonly path; watcher caught it
